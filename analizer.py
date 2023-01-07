@@ -9,18 +9,42 @@ from analizer_service import Aggregator
 import queue
 import threading
 import time
+import parse
+import pandas as pd
 
 class Analizer:
-	def __init__(self, input_col : MyConcurrentCollection, quota, threads_count = 1):
+	def __init__(self, input_col : MyConcurrentCollection, quota, threads_count = 1, trainable_data = False, ip_src = None):
+		if trainable_data and not ip_src:
+			raise NameError("ip_src not set")
+
 		self.input_col = input_col
-		self.consumers = [Aggregator(self.input_col, self.analyze_data) for _ in range(threads_count)]
+		self.consumers = [Aggregator(self.input_col, self.analyze_or_create_train_data) for _ in range(threads_count)]
 		self.quota = quota
+		self.trainable_data = trainable_data
+		self.ip_src = ip_src
 
 	def run(self):
 		for consumer in self.consumers:
 			consumer.start()
 		for consumer in self.consumers:
 			consumer.join()
+
+	def analyze_or_create_train_data(self, data):
+		if self.trainable_data:
+			self.create_train_data(data)
+		else:
+			self.analyze_data(data)
+
+	def create_train_data(self, data):
+		for key in data.keys():
+			ip_src, ip_dst, protocol = parse.parse("{} -> {} Protocol: {}", key)
+			if ip_src == self.ip_src:
+				data[key][SystemEnum.enumAggregateDNS["LABEL"]] = 1
+
+		df = pd.DataFrame(data)
+
+		print(df.T)
+			
 
 	def analyze_data(self, data):
 		logfile = open("/var/log/data-exfiltration.log", "a")
@@ -32,21 +56,8 @@ class Analizer:
 			if data[key][SystemEnum.enumAggregateDNS["AMOUNT_DATA_SENT"]] > self.quota*1024*1024:
 				logfile.write("Detected for a stream {} data exfiltration, based on exceeding the quota {} MB. The data was sent {}\n".format\
 					(key, self.quota, data[key][SystemEnum.enumAggregateDNS["AMOUNT_DATA_SENT"]]))
+
+		logfile.close()
+
 		return
 
-	"""
-	#def predict(self):
-    #    return [[key, self.model.predict([self.dfMainInfo[key]])] for key in self.dfMainInfo]
-	def analyze_data(self, data):
-        ex = 0
-        
-        for key in data.keys:
-           	new_aggregate_data[key] = aggregate(data[key])
-           	if entropy(new_aggregate_data[time_key][SystemEnum.enumNormalizeTable["BODY"]]) > 3 or new_aggregate_data[time_key][SystemEnum.enumNormalizeTable["QUOTA"]] > quota:
-           		incident_flag = true
-          		return incident_flag
-
-		    incident_flag  = predict(new_aggregate_data)
-		    if(incident_flag)
-		       	return incident_flag
-	"""	       	

@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     output_col_agent = MyConcurrentCollection()
     agent = Agent(output_col=output_col_agent, threads_count=3, iface = iface)
-    analizer = Analizer(input_col=output_col_agent, quota=100, threads_count=3)
+    analizer = Analizer(input_col=output_col_agent, quota=100, threads_count=3, trainable_data = True, ip_src = "192.168.42.136")
    
     thread_agent = threading.Thread(target=agent.run, args=())
     thread_analizer = threading.Thread(target=analizer.run, args=())

@@ -23,7 +23,7 @@ def entropy(s: str):
         # p is the probability of seeing this byte in the file, as a floating-
         # point number
         p = 1.0 * count / len(s)
-        entropy -= p * math.log(p, 256)
+        entropy -= p * math.log(p, 2)
 
     return entropy
 
@@ -79,7 +79,7 @@ class SystemEnum:
     }
 
     enumAggregateDNS = {
-        "Domains": 0,
+        "DOMAINS": 0,
 
         "AMOUNT_DATA_SENT": 1,
 
@@ -88,5 +88,9 @@ class SystemEnum:
         #The largest ratio of the largest word to the total length of the domain
         "LARGEST_RATIO": 3,
 
-        # "AVERAGE_TIMESTAMP": 6,
+        "NUMBER_PACKAGES": 4,
+
+        "FREQUENCY": 5,
+
+        "LABEL": 6,
     }

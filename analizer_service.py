@@ -7,6 +7,7 @@ from utils import MyConcurrentCollection, SystemEnum, entropy
 
 import queue
 import threading
+import pandas as pd
 
 encoding = 'utf-8'
 
@@ -25,39 +26,56 @@ class Aggregator(threading.Thread):
         self.input_collection = input_collection
         self.callback = callback
 
-        self.dfAggreagetedMainInfo = defaultdict(lambda: [None]*len(SystemEnum.enumAggregateDNS))
+        self.dictionaryAggreagetedInfo = defaultdict(lambda: [None]*len(SystemEnum.enumAggregateDNS))
 
     def aggregate(self, data):
         for key in data.keys():
             if data[key][SystemEnum.enumNormalizeTable["ProtocolType"]] == SystemEnum.enumProtocol["DNS"]:
                 aggregate_key = \
-                    "{} -> {}".format(data[key][SystemEnum.enumNormalizeTable["IP_SRC"]], data[key][SystemEnum.enumNormalizeTable["IP_DST"]])
+                    "{} -> {} Protocol: {}".format(data[key][SystemEnum.enumNormalizeTable["IP_SRC"]],\
+                            data[key][SystemEnum.enumNormalizeTable["IP_DST"]], "DNS")
 
-                if not self.dfAggreagetedMainInfo[aggregate_key][SystemEnum.enumAggregateDNS["Domains"]]:
-                    self.dfAggreagetedMainInfo[aggregate_key][SystemEnum.enumAggregateDNS["Domains"]] = \
+                if not self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["DOMAINS"]]:
+                    self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["DOMAINS"]] = \
                         str(data[key][SystemEnum.enumNormalizeTable["BODY"]], encoding)
-                    self.dfAggreagetedMainInfo[aggregate_key][SystemEnum.enumAggregateDNS["AMOUNT_DATA_SENT"]] = \
+
+                    self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["AMOUNT_DATA_SENT"]] = \
                         data[key][SystemEnum.enumNormalizeTable["PACKAGE_SIZE"]]
+
                 else:
-                    self.dfAggreagetedMainInfo[aggregate_key][SystemEnum.enumAggregateDNS["Domains"]] += \
+                    self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["DOMAINS"]] += \
                         str(data[key][SystemEnum.enumNormalizeTable["BODY"]], encoding)
-                    self.dfAggreagetedMainInfo[aggregate_key][SystemEnum.enumAggregateDNS["AMOUNT_DATA_SENT"]] += \
+
+                    self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["AMOUNT_DATA_SENT"]] += \
                         data[key][SystemEnum.enumNormalizeTable["PACKAGE_SIZE"]]
+
                 ratio = ratio_word_to_domainlen(str(data[key][SystemEnum.enumNormalizeTable["BODY"]], encoding))
-                if     (self.dfAggreagetedMainInfo[aggregate_key][SystemEnum.enumAggregateDNS["LARGEST_RATIO"]] == None or
-                        self.dfAggreagetedMainInfo[aggregate_key][SystemEnum.enumAggregateDNS["LARGEST_RATIO"]] < ratio):
-                    self.dfAggreagetedMainInfo[aggregate_key][SystemEnum.enumAggregateDNS["LARGEST_RATIO"]] = ratio
+                if     (self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["LARGEST_RATIO"]] == None or
+                        self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["LARGEST_RATIO"]] < ratio):
+                    self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["LARGEST_RATIO"]] = ratio
+
+                if not self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["NUMBER_PACKAGES"]]:
+                    self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["NUMBER_PACKAGES"]] = 1
+                else:
+                    self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["NUMBER_PACKAGES"]] += 1
+
+                self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["FREQUENCY"]] = \
+                    self.dictionaryAggreagetedInfo[aggregate_key][SystemEnum.enumAggregateDNS["NUMBER_PACKAGES"]] \
+                        / data[key][SystemEnum.enumNormalizeTable["TIMESTAMP"]]
+                        
 
 
-        for key in self.dfAggreagetedMainInfo.keys():
-            self.dfAggreagetedMainInfo[key][SystemEnum.enumAggregateDNS["ENTROPY"]] = \
-                entropy(self.dfAggreagetedMainInfo[key][SystemEnum.enumAggregateDNS["Domains"]])        
-            print("Key: {}".format(key), self.dfAggreagetedMainInfo[key])
+        for key in self.dictionaryAggreagetedInfo.keys():
+            self.dictionaryAggreagetedInfo[key][SystemEnum.enumAggregateDNS["ENTROPY"]] = \
+                entropy(self.dictionaryAggreagetedInfo[key][SystemEnum.enumAggregateDNS["DOMAINS"]])        
+            #print("Key: {}".format(key), self.dictionaryAggreagetedInfo[key])
 
+    def clean_aggregated_data(self):
+        for key in self.dictionaryAggreagetedInfo.keys():
+            if self.dictionaryAggreagetedInfo[key][SystemEnum.enumAggregateDNS["NUMBER_PACKAGES"]] > 100:
+                self.dictionaryAggreagetedInfo[key] = [None]*len(SystemEnum.enumAggregateDNS)
+            #print("Key: {}".format(key), self.dictionaryAggreagetedInfo[key])
 
-    def clear(self):
-        self.dfMainInfo = defaultdict(lambda: [None]*len(self.enumNormalizeTable))
-        self.index_package = 0
 
     def run(self):
         ex = 0
@@ -67,19 +85,14 @@ class Aggregator(threading.Thread):
 
                 self.aggregate(data)
 
-                self.callback(self.dfAggreagetedMainInfo)
+                self.callback(self.dictionaryAggreagetedInfo)
+
+                self.clean_aggregated_data()
                   
             else:
                 time.sleep(0.1)
                 ex += 1
                 if ex > 10000:
-                    self.callback(self.dfAggreagetedMainInfo)
+                    self.callback(self.dictionaryAggreagetedInfo)
                     #self.normalizer.clear()
-                    return
-
-    def packet_processing(packet):
-        if packet.haslayer(DNS):
-            self.normalizer.append("DNS", packet)   
-            self.number_pkt_processed += 1
-
-        return    
+                    return 
